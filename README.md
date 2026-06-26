@@ -98,6 +98,13 @@ uvicorn app:app --reload --port 8000
 
 ## Notes
 
+- Funds display with their Sage names (e.g. "133 - EA Operating"). Explore Asheville
+  shows 131/132/133; BCTDA shows 130/320/321.
+- Fund 130 (TDA Operating) has no budget lines, so selecting it switches Department,
+  Program, GL Code, and Spend Category to free-text entry; those values are accepted
+  as typed and no budget figures are attached. Every other fund stays a validated
+  cascade. If TDA Operating should use a fixed Department or a real coding list,
+  send it and the cascade can be restored for 130.
 - File uploads are capped at 50 MB each in `app.py` (`MAX_FILE_MB`); Asana's own
   limit is higher. Adjust if needed.
 - The dropdown data comes from the six FY27 budgeting workbooks. The source form is

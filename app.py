@@ -47,12 +47,28 @@ CASCADE = BUDGET["cascade"]
 
 app = FastAPI(title="EA Invoice Submission")
 
+FUND_LABELS = {
+    "130": "TDA Operating",
+    "131": "TDA Earned Income",
+    "132": "Always Asheville",
+    "133": "EA Operating",
+    "320": "Tourism Product Development",
+    "321": "Legacy Investment From Tourism Fund",
+}
+
 
 def lookup(entity, fund, department, program, gl_code, spend_category):
+    """Return (leaf, is_freeform). is_freeform=True when the fund exists but has no
+    cascade data (e.g. 130 TDA Operating), so the lower fields are accepted as typed."""
+    fund_node = CASCADE.get(entity, {}).get(fund)
+    if fund_node is None:
+        return None, False          # entity/fund not valid
+    if not fund_node:
+        return {}, True             # freeform fund: no budget lines below it
     try:
-        return CASCADE[entity][fund][department][program][gl_code][spend_category]
+        return fund_node[department][program][gl_code][spend_category], False
     except KeyError:
-        return None
+        return None, False
 
 
 def money(v):
@@ -66,7 +82,7 @@ def build_task(fields: dict, leaf: dict) -> dict:
         f"Vendor Name: {fields['vendor_name']}",
         "",
         f"Entity: {fields['entity']}",
-        f"Fund: {fields['fund']}",
+        f"Fund: {fields['fund']}" + (f" - {FUND_LABELS[fields['fund']]}" if fields['fund'] in FUND_LABELS else ""),
         f"Department: {fields['department']}",
         f"Program Hierarchy: {leaf.get('program_hierarchy') or 'n/a'}",
         f"Program: {fields['program']}",
@@ -154,8 +170,15 @@ async def submit(
     if not fields["memo"]:
         raise HTTPException(status_code=422, detail="Memo is required.")
 
-    leaf = lookup(entity, fund, department, program, gl_code, spend_category)
-    if leaf is None:
+    leaf, freeform = lookup(entity, fund, department, program, gl_code, spend_category)
+    if freeform:
+        if not (department.strip() and program.strip() and gl_code.strip() and spend_category.strip()):
+            raise HTTPException(
+                status_code=422,
+                detail="Department, Program, GL Code, and Spend Category are required.",
+            )
+        leaf = {}  # no budget figures for a freeform fund
+    elif leaf is None:
         raise HTTPException(
             status_code=422,
             detail="That Entity, Fund, Department, Program, GL Code, and Spend Category "
