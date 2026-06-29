@@ -69,6 +69,13 @@
   button.submit:disabled{background:#A9BBC7;cursor:not-allowed}
   .msg{font-size:13px;font-weight:600;min-height:18px}
   .msg.ok{color:var(--ok)} .msg.err{color:var(--err)} .msg a{color:var(--navy)}
+  /* vendor autocomplete */
+  .acwrap{position:relative}
+  .ac{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line-strong);
+    border-radius:8px;box-shadow:0 8px 24px rgba(14,56,88,.14);max-height:260px;overflow:auto;margin:0;padding:4px;list-style:none}
+  .ac.hide{display:none}
+  .ac li{padding:9px 11px;border-radius:6px;font-size:14px;cursor:pointer;color:var(--ink)}
+  .ac li.active,.ac li:hover{background:#EEF5F7;color:var(--navy-deep)}
   /* splash */
   .splash{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;flex-direction:column;align-items:center;padding:0 20px;overflow:auto}
   .splash.hide{display:none}
@@ -113,8 +120,10 @@
     <p class="lede">Explore Asheville &middot; FY27 budget coding. Choose Entity and the rest narrows down to a valid coded line.</p>
 
     <div class="q"><label>Vendor Name<span class="req">*</span></label>
-      <input type="text" id="vendor" list="vendorList" autocomplete="off" placeholder="Start typing the vendor name"/>
-      <datalist id="vendorList"></datalist></div>
+      <div class="acwrap">
+        <input type="text" id="vendor" autocomplete="off" placeholder="Start typing the vendor name"/>
+        <ul class="ac hide" id="vendorAC"></ul>
+      </div></div>
 
     <div class="q"><label>Amount<span class="req">*</span></label>
       <input type="text" id="amount" inputmode="decimal" placeholder="0.00"/></div>
@@ -154,9 +163,40 @@ fetch("budget_tree.json").then(r=>r.json()).then(d=>{CASC=d.cascade;ENTITIES=d.e
   .catch(()=>{msg.className="msg err";msg.textContent="Could not load the budget data. Refresh to try again.";});
 
 // vendor autocomplete
-fetch("vendors.json").then(r=>r.json()).then(d=>{
-  const dl=$("vendorList");(d.vendors||[]).forEach(v=>{const o=document.createElement("option");o.value=v;dl.appendChild(o);});
-}).catch(()=>{});
+// vendor autocomplete (custom dropdown; native datalist is unreliable across browsers)
+let VENDORS=[];
+fetch("vendors.json").then(r=>r.json()).then(d=>{VENDORS=d.vendors||[];})
+  .catch(e=>console.warn("vendor list failed to load:",e));
+const acBox=$("vendorAC");let acIdx=-1,acMatches=[];
+function hideAC(){acBox.classList.add("hide");acIdx=-1;}
+function renderAC(){
+  const q=vendor.value.trim().toLowerCase();
+  if(!q||!VENDORS.length){hideAC();return;}
+  const starts=[],contains=[];
+  for(const v of VENDORS){const lv=v.toLowerCase();
+    if(lv.startsWith(q))starts.push(v);else if(lv.includes(q))contains.push(v);}
+  acMatches=starts.concat(contains).slice(0,8);
+  if(!acMatches.length){hideAC();return;}
+  acBox.innerHTML="";
+  acMatches.forEach(v=>{const li=document.createElement("li");li.textContent=v;
+    li.addEventListener("mousedown",e=>{e.preventDefault();vendor.value=v;hideAC();validate();});
+    acBox.appendChild(li);});
+  acIdx=-1;acBox.classList.remove("hide");
+}
+vendor.addEventListener("input",()=>{renderAC();validate();});
+vendor.addEventListener("focus",()=>{if(vendor.value.trim())renderAC();});
+vendor.addEventListener("blur",()=>setTimeout(hideAC,120));
+vendor.addEventListener("keydown",e=>{
+  if(acBox.classList.contains("hide"))return;
+  const items=[...acBox.querySelectorAll("li")];if(!items.length)return;
+  if(e.key==="ArrowDown"){e.preventDefault();acIdx=(acIdx+1)%items.length;}
+  else if(e.key==="ArrowUp"){e.preventDefault();acIdx=(acIdx-1+items.length)%items.length;}
+  else if(e.key==="Enter"&&acIdx>=0){e.preventDefault();vendor.value=acMatches[acIdx];hideAC();validate();return;}
+  else if(e.key==="Escape"){hideAC();return;}
+  else return;
+  items.forEach((li,i)=>li.classList.toggle("active",i===acIdx));
+  if(acIdx>=0)items[acIdx].scrollIntoView({block:"nearest"});
+});
 
 function fill(sel,items,ph){sel.innerHTML="";const o=document.createElement("option");o.value="";o.textContent=ph;sel.appendChild(o);
   items.forEach(v=>{const op=document.createElement("option");op.value=v;op.textContent=v;sel.appendChild(op);});}
@@ -189,7 +229,7 @@ dept.addEventListener("change",()=>{reset(2);const c=CASC[entity.value]?.[fund.v
 prog.addEventListener("change",()=>{reset(3);const c=CASC[entity.value]?.[fund.value]?.[gl.value]?.[dept.value]?.[prog.value];
   if(c){const k=keys(c);fill(sc,k,"Choose one...");lock(sc,false);$("scMeta").textContent=k.length+" spend categor"+(k.length>1?"ies":"y");}validate();});
 sc.addEventListener("change",validate);
-[vendor,amount,memo].forEach(el=>el.addEventListener("input",validate));
+[amount,memo].forEach(el=>el.addEventListener("input",validate));
 FREE.forEach(([,tid])=>$(tid).addEventListener("input",validate));
 
 const drop=$("drop"),fileInput=$("fileInput"),fileList=$("fileList");
