@@ -9,8 +9,8 @@ services:
       - key: ASANA_PAT
         sync: false          # secret: set in the Render dashboard, never commit it
       - key: ASANA_PROJECT_GID
-        value: "1212071690368205"          # FY26 Invoices project
+        value: "1216070629813582"          # FY27 Invoices project
       - key: ASANA_SECTION_GID
-        value: "1212071690368206"          # "Invoices to be Processed" section
+        value: "1216070629813583"          # "Invoices to be Processed" section (FY27)
       - key: ASANA_FIELD_MAP
-        value: '{"vendor_name":"1213184847617955"}'   # Vendor Name (text) custom field
+        value: '{"vendor_name":"1216073242686048"}'   # Vendor Name (text) custom field (FY27)
